@@ -4,7 +4,7 @@
 /* Start of defined constant/global variables. */
 const char *kDefaultFilename = "./param/a.param"
 element_t *universalAttributeSet;
-element_t *defaultAttributeSet;
+element_t *DummyAttributeSet;
 /* End of defined constant variables. */
 
 
@@ -16,24 +16,35 @@ struct vecter_s
 	element_t *data;
 }
 
+typedef struct vecter_s vecter_t[1];
+typedef struct vecter_s *vecter_ptr;
+
 struct publickey_s
 {
 	element_t g;
 	element_t g1;
 	element_t g2;
-	element_t *g2;
+	element_t Z;
+	vecter_t H;
+	vecter_t U;
 };
 
 struct masterkey_s
 {
+	element_t x;
 };
 
 struct privatekey_s
 {
+	vecter_t d0;
+	vecter_t d1;
 };
 
 struct signatures_s
 {
+	element_t sig0;
+	element_t sig1;
+	vecter_t sigi;
 };
 
 typedef struct publickey_s pk_t[1];
@@ -88,6 +99,9 @@ int main(int argc, char *argv[])
 	else init_pairing(pairing, kDefaultFilename)
 
 
+	return 0;
+}
+/*
 	element_init_G2(g, pairing);
 	element_init_G2(public_key, pairing);
 	element_init_G1(h, pairing);
@@ -110,7 +124,5 @@ int main(int argc, char *argv[])
 	} else {
 		    printf("signature does not verify\n");
 	}
-
-	return 0;
-}
+*/
 /* End of main function. */
