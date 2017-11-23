@@ -17,6 +17,8 @@ typedef struct vecter_s *vecter_ptr;
 
 /* Start of defined function. */
 void element_init_vector_G1(pairing_t _pairing, vecter_t _v, int _size);
+void element_init_vector_Zr(pairing_t _pairing, vecter_t _v, int _size);
+void element_random_vector(vecter_t _v);
 /* End of defined function. */
 
 #endif
