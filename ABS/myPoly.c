@@ -6,11 +6,28 @@ void element_init_poly_Zr(pairing_t _pairing, poly_t _q, int _degree)
 	element_init_vector_Zr(_pairing, tmp, _degree);
 }
 
-void element_random_poly(poly_t _q, element_t _x)
+void element_random_poly(poly_t _q, element_t _c)
 {
 	vecter_ptr tmp = (vecter_ptr) _q;
 	element_random_vector(tmp);
-	element_set(tmp->val[0], _x);
+	element_set(tmp->val[0], _c);
+}
+
+void element_get_y_poly(pairing_t _pairing, element_t _y, poly_t _q, element_t _x)
+{
+	int i;
+	element_t tmp;
+	
+	element_set0(_y);
+	element_init_Zr(tmp, _pairing);
+	for(i=1; i<_q->degree; i++)
+	{
+		element_mul(tmp, _q->coef[i], _x);
+		element_add(_y, _y, tmp);
+	}
+	element_add(_y, _y, _q->coef[0]);
+
+	element_clear(tmp);
 }
 
 void element_lagrange_interpolation(pairing_t _pairing, element_t _coef, vecter_t _s, element_t _j, element_t _i)
