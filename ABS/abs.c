@@ -1,29 +1,31 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 #include <pbc/pbc.h>
+#include <openssl/sha.h>
+
+#include "myVector.h"
+
+#define ELAPSEDTIME(x, y) ((float)(y-x)/CLOCKS_PER_SEC)
+time_t startTime;
+time_t endTime;
 
 
 /* Start of defined constant/global variables. */
-const char *kDefaultFilename = "./param/a.param"
-element_t *universalAttributeSet;
-element_t *DummyAttributeSet;
+const int n = SHA_DIGEST_LENGTH * 8;
+const char *kDefaultFilename = "./param/a.param";
+vecter_t *universalAttributeSet;
+vecter_t *DummyAttributeSet;
 /* End of defined constant variables. */
 
 
 /* Start of defined structures. */
-// will make vecter file.
-struct vecter_s
-{
-	int size;
-	element_t *data;
-}
-
-typedef struct vecter_s vecter_t[1];
-typedef struct vecter_s *vecter_ptr;
-
 struct publickey_s
 {
 	element_t g;
 	element_t g1;
 	element_t g2;
+	element_t u;
 	element_t Z;
 	vecter_t H;
 	vecter_t U;
@@ -64,20 +66,49 @@ typedef struct signatures_s *sig_ptr;
  * Read file to initialize pairing.
  * Returns 0 on success, 1 on failure.
  */
-int init_pairing(pairing_t _pairing, char *filename)
+int init_pairing(pairing_t _pairing, const char *_filename)
 {
 	FILE *fp = NULL;
 	char param[1024];
 	size_t count;
 	int res;
 
-	if (NULL == (fp = fopen(filename, "r"))) pbc_die("file open error");
-	count = fread(param, 1, 1024, stdin);
+	if (NULL == (fp = fopen(_filename, "r"))) pbc_die("file open error");
+	count = fread(param, 1, 1024, fp);
 	if (!count) pbc_die("input error");
-	res = pairing_init_set_buf(pairing, param, count);
+	res = pairing_init_set_buf(_pairing, param, count);
 	fclose(fp);
 
 	return res;
+}
+
+
+/*
+ * Algorithm setup.
+ * Generate PK, MK.
+ * Attribute set setup.
+ */
+void abs_setup(pairing_t _pairing, pk_t _pk, mk_t _mk, int _l, int _d)
+{
+	int i;
+
+	// Allocate parameters.
+	element_init_G1(_pk->g, _pairing);
+	element_init_G1(_pk->g1, _pairing);
+	element_init_G1(_pk->g2, _pairing);
+	element_init_G1(_pk->u, _pairing);
+	element_init_Zr(_mk->x, _pairing);
+	element_init_vector_G1(_pairing, _pk->H, _l);
+	element_init_vector_G1(_pairing, _pk->U, n);
+
+
+	// Generate master key.
+	element_random(_mk->x);
+
+	// Generate params.
+	element_random(_pk->g);
+	element_pow_zn(_pk->g1, _pk->g, _mk->x);
+
 }
 /* End of defined functions. */
 
@@ -96,33 +127,9 @@ int main(int argc, char *argv[])
 
 	// Initailize Pairing.
 	if (2 == argc) init_pairing(pairing, argv[1]);
-	else init_pairing(pairing, kDefaultFilename)
+	else init_pairing(pairing, kDefaultFilename);
 
 
 	return 0;
 }
-/*
-	element_init_G2(g, pairing);
-	element_init_G2(public_key, pairing);
-	element_init_G1(h, pairing);
-	element_init_G1(sig, pairing);
-	element_init_GT(temp1, pairing);
-	element_init_GT(temp2, pairing);
-	element_init_Zr(secret_key, pairing);
-
-	element_random(g);
-	element_random(secret_key);
-	element_pow_zn(public_key, g, secret_key);
-
-	element_from_hash(h, "ABCDEF", 6);
-	element_pow_zn(sig, h, secret_key);
-
-	pairing_apply(temp1, sig, g, pairing);
-	pairing_apply(temp2, h, public_key, pairing);
-	if (!element_cmp(temp1, temp2)) {
-		    printf("signature verifies\n");
-	} else {
-		    printf("signature does not verify\n");
-	}
-*/
 /* End of main function. */
