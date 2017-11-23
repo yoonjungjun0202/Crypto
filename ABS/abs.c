@@ -12,10 +12,12 @@ time_t endTime;
 
 
 /* Start of defined constant/global variables. */
-const int n = SHA_DIGEST_LENGTH * 8;
+const int l = 10;
+const int d = 5;
+const int n = SHA_DIGEST_LENGTH * 8;	// 160 bit.
 const char *kDefaultFilename = "./param/a.param";
-vecter_t *universalAttributeSet;
-vecter_t *DummyAttributeSet;
+vecter_t US;	// universal set.
+vecter_t DS;	// dummy set.
 /* End of defined constant variables. */
 
 
@@ -90,15 +92,23 @@ int init_pairing(pairing_t _pairing, const char *_filename)
  */
 void abs_setup(pairing_t _pairing, pk_t _pk, mk_t _mk, int _l, int _d)
 {
+	int i, j;
+
 	// Allocate parameters.
 	element_init_G1(_pk->g, _pairing);
 	element_init_G1(_pk->g1, _pairing);
 	element_init_G1(_pk->g2, _pairing);
 	element_init_G1(_pk->u, _pairing);
 	element_init_Zr(_mk->x, _pairing);
+	element_init_GT(_pk->Z, _pairing);
 	element_init_vector_G1(_pairing, _pk->H, _l);
 	element_init_vector_G1(_pairing, _pk->U, n);
+	element_init_vector_G1(_pairing, US, _l);
+	element_init_vector_G1(_pairing, DS, _d-1);
 
+	// set attribute set.
+	for(i=0; i<_l; i++) element_set_si(US->val[i], i);
+	for(j=0 ; j<_d-1; j++) element_set_si(DS->val[j], i+j); 
 
 	// Generate master key.
 	element_random(_mk->x);
@@ -128,17 +138,21 @@ int main(int argc, char *argv[])
 {
 	// Declare local variables of main function.
 	pairing_t pairing;
-
-	element_t g, h;
-	element_t public_key, secret_key;
-	element_t sig;
-	element_t temp1, temp2;
-
+	pk_t pk;
+	mk_t mk;
+	ask_t ask;
+	sig_t sig;
 
 	// Initailize Pairing.
 	if (2 == argc) init_pairing(pairing, argv[1]);
 	else init_pairing(pairing, kDefaultFilename);
 
+	// test abs algorithm.
+	abs_setup(pairing, pk, mk, l, d);
+
+
+	// clean memory.
+	pairing_clear(pairing);
 
 	return 0;
 }
