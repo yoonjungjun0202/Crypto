@@ -5,6 +5,7 @@
 #include <openssl/sha.h>
 
 #include "myVector.h"
+#include "myPoly.h"
 
 #define ELAPSEDTIME(x, y) ((float)(y-x)/CLOCKS_PER_SEC)
 time_t startTime;
@@ -16,8 +17,10 @@ const int l = 10;
 const int d = 5;
 const int n = SHA_DIGEST_LENGTH * 8;	// 160 bit.
 const char *kDefaultFilename = "./param/a.param";
-vecter_t US;	// universal set.
-vecter_t DS;	// dummy set.
+vecter_t US;	// Universal set.
+vecter_t DS;	// Dummy set.
+vecter_t userS;	// User set.
+poly_t q;		// Polynomial.
 /* End of defined constant variables. */
 
 
@@ -90,7 +93,7 @@ int init_pairing(pairing_t _pairing, const char *_filename)
  * Generate PK, MK.
  * Attribute set setup.
  */
-void abs_setup(pairing_t _pairing, pk_t _pk, mk_t _mk, int _l, int _d)
+void abs_setup(pairing_t _pairing, pk_t _pk, mk_t _mk)
 {
 	int i, j;
 
@@ -101,14 +104,14 @@ void abs_setup(pairing_t _pairing, pk_t _pk, mk_t _mk, int _l, int _d)
 	element_init_G1(_pk->u, _pairing);
 	element_init_Zr(_mk->x, _pairing);
 	element_init_GT(_pk->Z, _pairing);
-	element_init_vector_G1(_pairing, _pk->H, _l);
+	element_init_vector_G1(_pairing, _pk->H, l+d-1);
 	element_init_vector_G1(_pairing, _pk->U, n);
-	element_init_vector_G1(_pairing, US, _l);
-	element_init_vector_G1(_pairing, DS, _d-1);
+	element_init_vector_Zr(_pairing, US, l);
+	element_init_vector_Zr(_pairing, DS, d-1);
 
-	// set attribute set.
-	for(i=0; i<_l; i++) element_set_si(US->val[i], i);
-	for(j=0 ; j<_d-1; j++) element_set_si(DS->val[j], i+j); 
+	// Set attribute set.
+	for(i=0; i<l; i++) element_set_si(US->val[i], i);
+	for(j=0; j<d-1; j++) element_set_si(DS->val[j], i+j); 
 
 	// Generate master key.
 	element_random(_mk->x);
@@ -129,6 +132,39 @@ void abs_setup(pairing_t _pairing, pk_t _pk, mk_t _mk, int _l, int _d)
  */
 void abs_extract(pairing_t _pairing, ask_t _ask, mk_t _mk, pk_t _pk, vecter_t _userSet)
 {
+	int i, j, wSize;
+	vecter_t w;		// Attribute set.
+	vecter_t r;
+	element_t x, y;
+	element_t gh;
+
+	// Set polynomial.
+	element_init_poly_Zr(_pairing, q, d-1);
+	element_random_poly(q, _mk->x);
+
+	// Generate attribute private key.
+	wSize = _userSet->size + DS->size;
+	element_init_vector_Zr(_pairing, w, wSize);
+	for(i=0; i<DS->size; i++) element_set(w->val[i], DS->val[i]);
+	for(j=0; j<_userSet->size; j++) element_set(w->val[i+j], _userSet->val[j]);
+
+	element_init_Zr(x, _pairing);
+	element_init_Zr(y, _pairing);
+	element_init_G1(gh, _pairing);
+	element_init_vector_Zr(_pairing, r, wSize);
+	element_random_vector(r);
+	element_init_vector_G1(_pairing, _ask->d0, wSize);
+	element_init_vector_G1(_pairing, _ask->d1, wSize);
+	for(i=0; i<w->size; i++)
+	{
+		element_set_si(x, i);
+		element_get_y_poly(_pairing, y, q, x);
+
+		element_mul(gh, _pk->g1, _pk->H->val[i]);
+		element_pow2_zn(_ask->d0->val[i], _pk->g2, y, gh, r->val[i]);
+
+		element_pow_zn(_ask->d1->val[i], _pk->g, r->val[i]);
+	}
 }
 /* End of defined functions. */
 
@@ -143,12 +179,19 @@ int main(int argc, char *argv[])
 	ask_t ask;
 	sig_t sig;
 
+
 	// Initailize Pairing.
 	if (2 == argc) init_pairing(pairing, argv[1]);
 	else init_pairing(pairing, kDefaultFilename);
 
+
 	// test abs algorithm.
-	abs_setup(pairing, pk, mk, l, d);
+	abs_setup(pairing, pk, mk);
+
+	// initialize user attribute set.
+	element_init_vector_Zr(pairing, userS, 5);
+	element_get_random_in_vector(pairing, userS, US, 5);
+	abs_extract(pairing, ask, mk, pk, userS);
 
 
 	// clean memory.
