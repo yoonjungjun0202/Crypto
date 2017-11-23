@@ -90,8 +90,6 @@ int init_pairing(pairing_t _pairing, const char *_filename)
  */
 void abs_setup(pairing_t _pairing, pk_t _pk, mk_t _mk, int _l, int _d)
 {
-	int i;
-
 	// Allocate parameters.
 	element_init_G1(_pk->g, _pairing);
 	element_init_G1(_pk->g1, _pairing);
@@ -108,7 +106,19 @@ void abs_setup(pairing_t _pairing, pk_t _pk, mk_t _mk, int _l, int _d)
 	// Generate params.
 	element_random(_pk->g);
 	element_pow_zn(_pk->g1, _pk->g, _mk->x);
+	element_random(_pk->g2);
+	element_random(_pk->u);
+	element_random_vector(_pk->H);
+	element_random_vector(_pk->U);
+	element_pairing(_pk->Z, _pk->g1, _pk->g2);
+}
 
+/*
+ * Algorithm Extract.
+ * Generate attribute private key.
+ */
+void abs_extract(pairing_t _pairing, ask_t _ask, mk_t _mk, pk_t _pk, vecter_t _userSet)
+{
 }
 /* End of defined functions. */
 
