@@ -1,4 +1,6 @@
 #include "myVector.h"
+#include <stdlib.h>
+#include <time.h>
 
 /*
  * Initialize vector in G1.
@@ -34,4 +36,32 @@ void element_random_vector(vecter_t _v)
 	int i;
 	for(i=0; i<_v->size; i++)
 		element_random(_v->val[i]);
+}
+
+/*
+ * Generate random value from input vector.
+ */
+void element_get_random_in_vector(pairing_t _pairing, vecter_t _vo, vecter_t _vi, int _cnt)
+{
+	int i=0, j, pos, flag;
+	srand(time(NULL));
+	while(i < _cnt)
+	{
+		flag = 0;
+		pos = rand() % _vi->size;
+		for(j=0; j<i; j++)
+		{
+			if(0 == element_cmp(_vo->val[j], _vi->val[pos]))
+			{
+				flag = 1;
+				break;
+			}
+		}
+		
+		if(1 == flag)
+			continue;
+
+		element_set(_vo->val[i], _vi->val[pos]);
+		i++;
+	}
 }
