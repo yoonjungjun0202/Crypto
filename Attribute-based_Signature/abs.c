@@ -6,6 +6,7 @@
 
 #include "myVector.h"
 #include "myPoly.h"
+#include "myPredicate.h"
 
 #define ELAPSEDTIME(x, y) ((float)(y-x)/CLOCKS_PER_SEC)
 time_t startTime;
@@ -13,12 +14,16 @@ time_t endTime;
 
 
 /* Start of defined constant/global variables. */
-const int l = 10;
-const int d = 5;
+const int l = 10;	// Universal count.
+const int d = 5;	// Dummy count.
 const int n = SHA_DIGEST_LENGTH * 8;	// 160 bit.
+const int k = 3;	// Treshhold.
+const int userSCnt = 5;
+const int predSCnt = 5;
+
 const char *kDefaultFilename = "./param/a.param";
-vecter_t US;	// Universal set.
-vecter_t DS;	// Dummy set.
+vecter_t univS;	// Universal set.
+vecter_t dummyS;	// Dummy set.
 vecter_t userS;	// User set.
 poly_t q;		// Polynomial.
 /* End of defined constant variables. */
@@ -89,7 +94,7 @@ int init_pairing(pairing_t _pairing, const char *_filename)
 
 
 /*
- * Algorithm setup.
+ * Setup algorithm.
  * Generate PK, MK.
  * Attribute set setup.
  */
@@ -106,12 +111,12 @@ void abs_setup(pairing_t _pairing, pk_t _pk, mk_t _mk)
 	element_init_GT(_pk->Z, _pairing);
 	element_init_vector_G1(_pairing, _pk->H, l+d-1);
 	element_init_vector_G1(_pairing, _pk->U, n);
-	element_init_vector_Zr(_pairing, US, l);
-	element_init_vector_Zr(_pairing, DS, d-1);
+	element_init_vector_Zr(_pairing, univS, l);
+	element_init_vector_Zr(_pairing, dummyS, d-1);
 
 	// Set attribute set.
-	for(i=0; i<l; i++) element_set_si(US->val[i], i);
-	for(j=0; j<d-1; j++) element_set_si(DS->val[j], i+j); 
+	for(i=0; i<l; ++i) element_set_si(univS->val[i], i);
+	for(j=0; j<d-1; ++j) element_set_si(dummyS->val[j], i+j); 
 
 	// Generate master key.
 	element_random(_mk->x);
@@ -127,7 +132,7 @@ void abs_setup(pairing_t _pairing, pk_t _pk, mk_t _mk)
 }
 
 /*
- * Algorithm Extract.
+ * Extract algorithm.
  * Generate attribute private key.
  */
 void abs_extract(pairing_t _pairing, ask_t _ask, mk_t _mk, pk_t _pk, vecter_t _userSet)
@@ -143,10 +148,10 @@ void abs_extract(pairing_t _pairing, ask_t _ask, mk_t _mk, pk_t _pk, vecter_t _u
 	element_random_poly(q, _mk->x);
 
 	// Generate attribute private key.
-	wSize = _userSet->size + DS->size;
+	wSize = _userSet->size + dummyS->size;
 	element_init_vector_Zr(_pairing, w, wSize);
-	for(i=0; i<DS->size; i++) element_set(w->val[i], DS->val[i]);
-	for(j=0; j<_userSet->size; j++) element_set(w->val[i+j], _userSet->val[j]);
+	for(i=0; i<dummyS->size; ++i) element_set(w->val[i], dummyS->val[i]);
+	for(j=0; j<_userSet->size; ++j) element_set(w->val[i+j], _userSet->val[j]);
 
 	element_init_Zr(x, _pairing);
 	element_init_Zr(y, _pairing);
@@ -155,7 +160,7 @@ void abs_extract(pairing_t _pairing, ask_t _ask, mk_t _mk, pk_t _pk, vecter_t _u
 	element_random_vector(r);
 	element_init_vector_G1(_pairing, _ask->d0, wSize);
 	element_init_vector_G1(_pairing, _ask->d1, wSize);
-	for(i=0; i<w->size; i++)
+	for(i=0; i<w->size; ++i)
 	{
 		element_set_si(x, i);
 		element_get_y_poly(_pairing, y, q, x);
@@ -165,6 +170,48 @@ void abs_extract(pairing_t _pairing, ask_t _ask, mk_t _mk, pk_t _pk, vecter_t _u
 
 		element_pow_zn(_ask->d1->val[i], _pk->g, r->val[i]);
 	}
+}
+
+/*
+ * Sign algorithm.
+ * Generate signature.
+ */
+void abs_sign(pairing_t _pairing, char *_msg, ask_t _ask, pred_t _pred, pk_t _pk)
+{
+	
+}
+
+void abs_clean()
+{
+}
+
+/*
+ * Clear algorithm.
+ */
+void abs_clear(pk_t _pk, mk_t _mk, ask_t _ask, sig_t _sig)
+{
+	// Public key clear.
+	element_clear(_pk->g);
+	element_clear(_pk->g1);
+	element_clear(_pk->g2);
+	element_clear(_pk->u);
+	element_clear(_pk->Z);
+	element_clear_vector(_pk->H);
+	element_clear_vector(_pk->U);
+
+	// Master key clear.
+	element_clear(_mk->x);
+
+	// Attribute private key clear.
+	element_clear_vector(_ask->d0);
+	element_clear_vector(_ask->d1);
+
+	// Signature clear.
+	/*
+	element_clear(_sig->sig0);
+	element_clear(_sig->sig1);
+	element_clear_vector(_sig->sigi);
+	*/
 }
 /* End of defined functions. */
 
@@ -178,6 +225,8 @@ int main(int argc, char *argv[])
 	mk_t mk;
 	ask_t ask;
 	sig_t sig;
+	pred_t pred;
+	char *msg = "Attribute-based Signature and its Applications";
 
 
 	// Initailize Pairing.
@@ -185,17 +234,39 @@ int main(int argc, char *argv[])
 	else init_pairing(pairing, kDefaultFilename);
 
 
-	// test abs algorithm.
+	// Test ABS algorithm.
+	// 1. Generate public/master key.
 	abs_setup(pairing, pk, mk);
 
-	// initialize user attribute set.
-	element_init_vector_Zr(pairing, userS, 5);
-	element_get_random_in_vector(pairing, userS, US, 5);
+	// 2. Initialize user attribute set & Extract attribute private key.
+	element_init_vector_Zr(pairing, userS, userSCnt);
+	element_get_random_in_vector(userS, univS, userS->size);
 	abs_extract(pairing, ask, mk, pk, userS);
 
+	// 3. Initialize predicate & Generate Signature.
+	element_init_predicate(pairing, pred, predSCnt, k);
+	element_get_random_in_attrSet(pred, userS, univS);
+	sign(pairing, msg, ask, pred, pk);
+
+	// 4. Verify signature.
+
+
+	/*
+	printf("\n## univS: \n");
+	for(int i=0; i<univS->size; i++) element_printf("%B, ", univS->val[i]);
+	printf("\n## userS: \n");
+	for(int i=0; i<userS->size; i++) element_printf("%B, ", userS->val[i]);
+	printf("\n## PS: \n");
+	for(int i=0; i<pred->predS->size; i++) element_printf("%B, ", pred->predS->val[i]);
+	*/
 
 	// clean memory.
 	pairing_clear(pairing);
+	element_clear_predicate(pred);
+	element_clear_vector(univS);
+	element_clear_vector(dummyS);
+	element_clear_vector(userS);
+	abs_clear(pk, mk, ask, sig);
 
 	return 0;
 }
