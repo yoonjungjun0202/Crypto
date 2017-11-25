@@ -81,3 +81,13 @@ void element_copy_vector(vecter_t _vo, vecter_t _vi)
 	for(i=0; i<size; i++)
 		element_set(_vo->val[i], _vi->val[i]);
 }
+
+/*
+ * Clear memory.
+ */
+void element_clear_vector(vecter_t _v)
+{   
+	int i;
+	for(i=0; i<_v->size; i++)
+		element_clear(_v->val[i]);
+} 
