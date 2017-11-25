@@ -2,6 +2,8 @@
 #define __MY_VECTOR_H__
 
 #include <pbc/pbc.h>
+#include <stdlib.h>
+#include <time.h>
 
 /* Start of defined structures. */
 struct vecter_s
@@ -19,7 +21,8 @@ typedef struct vecter_s *vecter_ptr;
 void element_init_vector_G1(pairing_t _pairing, vecter_t _v, int _size);
 void element_init_vector_Zr(pairing_t _pairing, vecter_t _v, int _size);
 void element_random_vector(vecter_t _v);
-void element_get_random_in_vector(pairing_t _pairing, vecter_t _vo, vecter_t _vi, int _cnt);
+void element_get_random_in_vector(vecter_t _vo, vecter_t _vi, int _cnt);
+void element_copy_vector(vecter_t _vo, vecter_t _vi);
 /* End of defined function. */
 
 #endif
