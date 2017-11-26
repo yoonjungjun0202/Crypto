@@ -18,14 +18,13 @@ void element_get_y_poly(pairing_t _pairing, element_t _y, poly_t _q, element_t _
 	int i;
 	element_t tmp;
 	
-	element_set0(_y);
 	element_init_Zr(tmp, _pairing);
-	for(i=1; i<_q->degree; i++)
+	element_set(_y, _q->coef[0]);
+	for(i=1; i<_q->degree; ++i)
 	{
 		element_mul(tmp, _q->coef[i], _x);
 		element_add(_y, _y, tmp);
 	}
-	element_add(_y, _y, _q->coef[0]);
 
 	element_clear(tmp);
 }
@@ -44,7 +43,7 @@ void element_lagrange_interpolation(pairing_t _pairing, element_t _coef, vecter_
 
 	element_set1(numerator);
 	element_set1(denominator);
-	for(i=0; i<_s->size; i++)
+	for(i=0; i<_s->size; ++i)
 	{
 		if(0 == element_cmp(_s->val[i], _j))
 			continue;
