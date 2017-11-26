@@ -343,13 +343,15 @@ void abs_clear(pk_t _pk, mk_t _mk, ask_t _ask, sig_t _sig)
 	// Attribute private key clear.
 	element_clear_vector(_ask->d0);
 	element_clear_vector(_ask->d1);
+	element_clear_vector(_ask->attrS);
+	free(_ask->attrS);
 
 	// Signature clear.
-	/*
 	element_clear(_sig->sig0);
 	element_clear(_sig->sig1);
 	element_clear_vector(_sig->sigi);
-	*/
+	element_clear_vector(_sig->attrS);
+	free(_sig->attrS);
 }
 /* End of defined functions. */
 
@@ -390,6 +392,7 @@ int main(int argc, char *argv[])
 
 
 	
+	/* check is utility okay.
 	printf("\n## univS: \n");
 	for(int i=0; i<univS->size; i++) element_printf("%B, ", univS->val[i]);
 	printf("\n## dummyS: \n");
@@ -421,7 +424,7 @@ int main(int argc, char *argv[])
 	printf("\n");
 	element_clear_vector(uni);
 	free(uni);
-
+	*/
 
 	// clean memory.
 	abs_clear(pk, mk, ask, sig);
