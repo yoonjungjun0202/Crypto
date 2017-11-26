@@ -126,3 +126,37 @@ vecter_ptr element_get_intersection_vector_Zr(pairing_t _pairing, vecter_t _v0, 
 
 	return intersection;
 }
+
+vecter_ptr element_get_union_vector_Zr(pairing_t _pairing, vecter_t _v0, vecter_t _v1)
+{
+	int i, j, flag, pos=_v0->size, tmpCnt = _v0->size + _v1->size;
+	vecter_ptr u;
+	vecter_t tmp;
+
+	element_init_vector_Zr(_pairing, tmp, tmpCnt);
+	element_copy_vector(tmp, _v0);
+	for(i=0; i<_v1->size; ++i)
+	{
+		flag = 0;
+		for(j=0; j<_v0->size; ++j)
+		{
+			if(0 == element_cmp(_v0->val[j], _v1->val[i]))
+			{
+				flag = 1;
+				break;
+			}
+		}
+
+		if(1 == flag)
+			continue;
+
+		element_set(tmp->val[pos], _v1->val[i]);
+		++pos;
+	}
+
+	u = (vecter_ptr) malloc (sizeof(struct vecter_s));
+	element_init_vector_Zr(_pairing, u, pos);
+	element_copy_vector(u, tmp);
+	
+	return u;
+}
