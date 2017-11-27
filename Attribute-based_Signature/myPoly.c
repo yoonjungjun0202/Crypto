@@ -24,17 +24,23 @@ int element_set_coef_poly(poly_t _q, element_t _coef, int _idx)
 void element_get_y_poly(pairing_t _pairing, element_t _y, poly_t _q, element_t _x)
 {
 	int i;
-	element_t tmp;
+	element_t tmp0, tmp1, exp;
 	
-	element_init_Zr(tmp, _pairing);
+	element_init_Zr(exp, _pairing);
+	element_init_Zr(tmp0, _pairing);
+	element_init_Zr(tmp1, _pairing);
 	element_set(_y, _q->coef[0]);
 	for(i=1; i<_q->degree; ++i)
 	{
-		element_mul(tmp, _q->coef[i], _x);
-		element_add(_y, _y, tmp);
+		element_set_si(exp, i);
+		element_pow_zn(tmp0, _x, exp);
+		element_mul(tmp1, _q->coef[i], tmp0);
+		element_add(_y, _y, tmp1);
 	}
 
-	element_clear(tmp);
+	element_clear(tmp0);
+	element_clear(tmp1);
+	element_clear(exp);
 }
 
 void element_lagrange_interpolation(pairing_t _pairing, element_t _coef, vecter_t _s, element_t _j, element_t _i)
