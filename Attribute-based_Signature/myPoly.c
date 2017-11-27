@@ -6,11 +6,15 @@ void element_init_poly_Zr(pairing_t _pairing, poly_t _q, int _degree)
 	element_init_vector_Zr(_pairing, tmp, _degree);
 }
 
-void element_random_poly(poly_t _q, element_t _c)
+void element_random_poly(poly_t _q)
 {
 	vecter_ptr tmp = (vecter_ptr) _q;
 	element_random_vector(tmp);
-	element_set(tmp->val[0], _c);
+}
+
+void element_set_coef_poly(poly_t _q, element_t _coef, int _idx)
+{
+	element_set(_q->val[_idx], _coef);
 }
 
 void element_get_y_poly(pairing_t _pairing, element_t _y, poly_t _q, element_t _x)
