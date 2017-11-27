@@ -12,9 +12,13 @@ void element_random_poly(poly_t _q)
 	element_random_vector(tmp);
 }
 
-void element_set_coef_poly(poly_t _q, element_t _coef, int _idx)
+int element_set_coef_poly(poly_t _q, element_t _coef, int _idx)
 {
-	element_set(_q->val[_idx], _coef);
+	if(_idx >= _q->degree)
+		return 0;
+
+	element_set(_q->coef[_idx], _coef);
+	return 1;
 }
 
 void element_get_y_poly(pairing_t _pairing, element_t _y, poly_t _q, element_t _x)
