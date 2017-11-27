@@ -108,16 +108,17 @@ void abs_setup(pairing_t _pairing, pk_t _pk, mk_t _mk)
 	int i;
 
 	// Allocate parameters.
+	element_init_Zr(_mk->x, _pairing);
 	element_init_G1(_pk->g, _pairing);
 	element_init_G1(_pk->g1, _pairing);
 	element_init_G1(_pk->g2, _pairing);
 	element_init_G1(_pk->u, _pairing);
-	element_init_Zr(_mk->x, _pairing);
 	element_init_GT(_pk->Z, _pairing);
-	element_init_vector_G1(_pairing, _pk->H, l+d-1);
-	element_init_vector_G1(_pairing, _pk->U, n);
+
 	element_init_vector_Zr(_pairing, univS, l);
 	element_init_vector_Zr(_pairing, dummyS, d-1);
+	element_init_vector_G1(_pairing, _pk->H, l+d-1);
+	element_init_vector_G1(_pairing, _pk->U, n);
 
 	// Set attribute set.
 	for(i=0; i<l; ++i) element_set_si(univS->val[i], i+1);
@@ -143,23 +144,28 @@ void abs_setup(pairing_t _pairing, pk_t _pk, mk_t _mk)
 void abs_extract(pairing_t _pairing, ask_t _ask, mk_t _mk, pk_t _pk, vecter_t _userSet)
 {
 	int i, j, idx;
-	element_t y, r, gh;
+	element_t y, r, gh, tmp0, tmp1;
 	mpz_t z;
 
-	// Set polynomial.
-	element_init_poly_Zr(_pairing, q, d-1);
-	element_random_poly(q, _mk->x);
-
-	// Generate attribute private key.
-	_ask->attrS = element_get_union_vector_Zr(_pairing, _userSet, dummyS);
-
+	// Initialize.
 	mpz_init(z);
 	element_init_Zr(y, _pairing);
 	element_init_Zr(r, _pairing);
 	element_init_G1(gh, _pairing);
+	element_init_G1(tmp0, _pairing);
+	element_init_G1(tmp1, _pairing);
+
+	element_init_poly_Zr(_pairing, q, d-1);
+
+	// Set attri set.
+	_ask->attrS = element_get_union_vector_Zr(_pairing, _userSet, dummyS);
 	element_init_vector_G1(_pairing, _ask->d0, _ask->attrS->size);
 	element_init_vector_G1(_pairing, _ask->d1, _ask->attrS->size);
 
+	// Set polynomial.
+	element_random_poly(q, _mk->x);
+
+	// Generate attribute private key.
 	for(i=0; i<_ask->attrS->size; ++i)
 	{
 		element_get_y_poly(_pairing, y, q, _ask->attrS->val[i]);
@@ -169,7 +175,9 @@ void abs_extract(pairing_t _pairing, ask_t _ask, mk_t _mk, pk_t _pk, vecter_t _u
 
 		element_random(r);
 		element_mul(gh, _pk->g1, _pk->H->val[idx]);
-		element_pow2_zn(_ask->d0->val[i], _pk->g2, y, gh, r);
+		element_pow_zn(tmp0, _pk->g2, y);
+		element_pow_zn(tmp1, gh, r);
+		element_mul(_ask->d0->val[i], tmp0, tmp1);
 
 		element_pow_zn(_ask->d1->val[i], _pk->g, r);
 	}
@@ -178,6 +186,8 @@ void abs_extract(pairing_t _pairing, ask_t _ask, mk_t _mk, pk_t _pk, vecter_t _u
 	element_clear(y);
 	element_clear(r);
 	element_clear(gh);
+	element_clear(tmp0);
+	element_clear(tmp1);
 	mpz_clear(z);
 }
 
@@ -198,8 +208,6 @@ void abs_sign(pairing_t _pairing, sig_t _sig, char *_msg, ask_t _ask, pred_t _pr
 	mpz_t z;
    
 	// Check doest intersection exist.
-	// If exist, get intersection.
-	// Otherwise, abort;
 	intersection = element_get_intersection_vector_Zr(_pairing, _pred->predS, userS);
 	if(NULL == intersection)
 	{
@@ -213,9 +221,27 @@ void abs_sign(pairing_t _pairing, sig_t _sig, char *_msg, ask_t _ask, pred_t _pr
 		goto INTER_CLEAR;
 	}
 
+
+	// Initialize.
+	mpz_init(z);
+	element_init_Zr(s, _pairing);
+	element_init_Zr(r, _pairing);
+	element_init_Zr(zero, _pairing);
+	element_init_Zr(coef, _pairing);
+	element_init_G1(u, _pairing);
+	element_init_G1(_sig->sig0, _pairing);
+	element_init_G1(_sig->sig1, _pairing);
+	element_init_G1(tmp, _pairing);
+	element_init_G1(tmp1, _pairing);
+
 	// Set dummy set.
 	element_init_vector_Zr(_pairing, ddS, d - _pred->k);
 	element_get_random_in_vector(ddS, dummyS, ddS->size);
+
+	// Set Attr set.
+	inter_ddS = element_get_union_vector_Zr(_pairing, intersection, ddS);
+	_sig->attrS = element_get_union_vector_Zr(_pairing, _pred->predS, ddS);
+	element_init_vector_G1(_pairing, _sig->sigi, _sig->attrS->size);
 
 	// Hashing the message.
 	SHA256_Init(&ctx); 
@@ -225,16 +251,11 @@ void abs_sign(pairing_t _pairing, sig_t _sig, char *_msg, ask_t _ask, pred_t _pr
 
 	// Generate signature.
 	// sig1.
-	element_init_Zr(s, _pairing);
-	element_init_G1(_sig->sig1, _pairing);
-
 	element_random(s);
 	element_pow_zn(_sig->sig1, _pk->g, s);
 
 
 	// sig0.
-	element_init_G1(_sig->sig0, _pairing);
-	element_init_G1(u, _pairing);
 
 	element_set(u, _pk->u);
 	for(i=0; i<n; ++i)
@@ -244,17 +265,7 @@ void abs_sign(pairing_t _pairing, sig_t _sig, char *_msg, ask_t _ask, pred_t _pr
 
 
 	// sig0 & sigi.
-	mpz_init(z);
-	element_init_Zr(r, _pairing);
-	element_init_Zr(zero, _pairing);
-	element_init_Zr(coef, _pairing);
-	element_init_G1(tmp, _pairing);
-	element_init_G1(tmp1, _pairing);
-
 	element_set0(zero);
-	inter_ddS = element_get_union_vector_Zr(_pairing, intersection, ddS);
-	_sig->attrS = element_get_union_vector_Zr(_pairing, _pred->predS, ddS);
-	element_init_vector_G1(_pairing, _sig->sigi, _sig->attrS->size);
 	for(i=0,j=0; i<_sig->attrS->size; ++i)
 	{
 		element_random(r);
@@ -324,12 +335,7 @@ int abs_verify(pairing_t _pairing, char *_msg, sig_t _sig, pred_t _pred, pk_t _p
 	SHA256_CTX ctx;
 	mpz_t z;
 
-	// Hashing the message.
-	SHA256_Init(&ctx);
-	SHA256_Update(&ctx, (unsigned char *) _msg, strlen(_msg));
-	SHA256_Final(hash, &ctx);
-
-	// Check signature.
+	// Initialize.
 	element_init_G1(gh, _pairing);
 	element_init_G1(tmp0, _pairing);
 	element_init_G1(tmp1, _pairing);
@@ -339,6 +345,12 @@ int abs_verify(pairing_t _pairing, char *_msg, sig_t _sig, pred_t _pred, pk_t _p
 	element_init_GT(denominator, _pairing);
 	element_init_GT(Z, _pairing);
 	
+	// Hashing the message.
+	SHA256_Init(&ctx);
+	SHA256_Update(&ctx, (unsigned char *) _msg, strlen(_msg));
+	SHA256_Final(hash, &ctx);
+
+
 	// Calculate numerator.
 	element_pairing(numerator, _pk->g, _sig->sig0);
 
@@ -438,7 +450,7 @@ int main(int argc, char *argv[])
 	int isValid;
 
 
-	// Initailize Pairing.
+	// Initialize Pairing.
 	if (2 == argc) init_pairing(pairing, argv[1]);
 	else init_pairing(pairing, kDefaultFilename);
 	if (!pairing_is_symmetric(pairing)) pbc_die("pairing must be symmetric");
