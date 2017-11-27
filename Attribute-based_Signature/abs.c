@@ -105,7 +105,7 @@ int init_pairing(pairing_t _pairing, const char *_filename)
  */
 void abs_setup(pairing_t _pairing, pk_t _pk, mk_t _mk)
 {
-	int i, j;
+	int i;
 
 	// Allocate parameters.
 	element_init_G1(_pk->g, _pairing);
@@ -120,8 +120,8 @@ void abs_setup(pairing_t _pairing, pk_t _pk, mk_t _mk)
 	element_init_vector_Zr(_pairing, dummyS, d-1);
 
 	// Set attribute set.
-	for(i=0; i<l; ++i) element_set_si(univS->val[i], i);
-	for(j=0; j<d-1; ++j) element_set_si(dummyS->val[j], i+j); 
+	for(i=0; i<l; ++i) element_set_si(univS->val[i], i+1);
+	for(i=0; i<d-1; ++i) element_set_si(dummyS->val[i], l+1+i); 
 
 	// Generate master key.
 	element_random(_mk->x);
@@ -165,7 +165,7 @@ void abs_extract(pairing_t _pairing, ask_t _ask, mk_t _mk, pk_t _pk, vecter_t _u
 		element_get_y_poly(_pairing, y, q, _ask->attrS->val[i]);
 
 		element_to_mpz(z, _ask->attrS->val[i]); 
-		idx = mpz_get_ui(z);
+		idx = mpz_get_ui(z) - 1;
 
 		element_random(r);
 		element_mul(gh, _pk->g1, _pk->H->val[idx]);
@@ -260,7 +260,7 @@ void abs_sign(pairing_t _pairing, sig_t _sig, char *_msg, ask_t _ask, pred_t _pr
 		element_random(r);
 		// sig0.
 		element_to_mpz(z, _sig->attrS->val[i]);
-		idx = mpz_get_ui(z);
+		idx = mpz_get_ui(z) - 1;
 
 		element_mul(tmp, _pk->g1, _pk->H->val[idx]);
 		element_pow_zn(tmp1, tmp, r);
@@ -346,13 +346,13 @@ int abs_verify(pairing_t _pairing, char *_msg, sig_t _sig, pred_t _pred, pk_t _p
 	// Step 1.
 	mpz_init(z);
 	element_to_mpz(z, _sig->attrS->val[0]);
-	idx = mpz_get_ui(z);
+	idx = mpz_get_ui(z) - 1;
 	element_mul(gh, _pk->g1, _pk->H->val[idx]);
 	element_pairing(tmp2, gh, _sig->sigi->val[0]);
 	for(i=1; i<_sig->attrS->size; ++i)
 	{
 		element_to_mpz(z, _sig->attrS->val[i]);
-		idx = mpz_get_ui(z);
+		idx = mpz_get_ui(z) - 1;
 
 		element_mul(gh, _pk->g1, _pk->H->val[idx]);
 		element_pairing(tmp3, gh, _sig->sigi->val[i]);
@@ -441,6 +441,7 @@ int main(int argc, char *argv[])
 	// Initailize Pairing.
 	if (2 == argc) init_pairing(pairing, argv[1]);
 	else init_pairing(pairing, kDefaultFilename);
+	if (!pairing_is_symmetric(pairing)) pbc_die("pairing must be symmetric");
 
 
 	// Test ABS algorithm.
