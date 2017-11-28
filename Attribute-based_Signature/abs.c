@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <pbc/pbc.h>
 #include <openssl/sha.h>
 
@@ -9,11 +8,8 @@
 #include "myPoly.h"
 #include "myPredicate.h"
 
-#define ELAPSEDTIME(x, y) ((float)(y-x)/CLOCKS_PER_SEC)
 #define BASE 8
 #define GET_BIT(data, index, base) ( ((*(data+(index/base)) & (1 << index % base)) == 0) ? 0 : 1 )
-time_t startTime;
-time_t endTime;
 
 
 /* Start of defined constant/global variables. */
@@ -23,12 +19,11 @@ const int n = SHA256_DIGEST_LENGTH * BASE;	// 256 bit = 32 * 8.
 const int k = 3;	// Treshhold.
 const int predSCnt = 5;
 const int userSCnt = 5;
-
 const char *kDefaultFilename = "./param/a.param";
+
 vecter_t univS;	// Universal set.
 vecter_t dummyS;	// Dummy set.
 vecter_t userS;	// User set.
-poly_t q;		// Polynomial.
 /* End of defined constant variables. */
 
 
@@ -146,6 +141,7 @@ void abs_extract(pairing_t _pairing, ask_t _ask, mk_t _mk, pk_t _pk, vecter_t _u
 	int i, j, idx;
 	element_t y, r, gh, tmp0, tmp1;
 	mpz_t z;
+	poly_t q;		// Polynomial.
 
 	// Initialize.
 	mpz_init(z);
@@ -190,6 +186,7 @@ void abs_extract(pairing_t _pairing, ask_t _ask, mk_t _mk, pk_t _pk, vecter_t _u
 	element_clear(gh);
 	element_clear(tmp0);
 	element_clear(tmp1);
+	element_clear_poly(q);
 	mpz_clear(z);
 }
 
