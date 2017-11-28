@@ -163,7 +163,9 @@ void abs_extract(pairing_t _pairing, ask_t _ask, mk_t _mk, pk_t _pk, vecter_t _u
 	element_init_vector_G1(_pairing, _ask->d1, _ask->attrS->size);
 
 	// Set polynomial.
-	element_random_poly(q, _mk->x);
+	element_random_poly(q);
+	element_set_coef_poly(q, _mk->x, 0);
+
 
 	// Generate attribute private key.
 	for(i=0; i<_ask->attrS->size; ++i)
@@ -203,7 +205,7 @@ void abs_sign(pairing_t _pairing, sig_t _sig, char *_msg, ask_t _ask, pred_t _pr
 	vecter_t ddS;
 	vecter_ptr inter_ddS = NULL;
 	vecter_ptr intersection = NULL;
-	element_t s, u, r, coef, zero, tmp, tmp1;
+	element_t s, u, r, gh, lag, zero, tmp;
 	SHA256_CTX ctx;
 	mpz_t z;
    
@@ -226,13 +228,13 @@ void abs_sign(pairing_t _pairing, sig_t _sig, char *_msg, ask_t _ask, pred_t _pr
 	mpz_init(z);
 	element_init_Zr(s, _pairing);
 	element_init_Zr(r, _pairing);
+	element_init_Zr(lag, _pairing);
 	element_init_Zr(zero, _pairing);
-	element_init_Zr(coef, _pairing);
 	element_init_G1(u, _pairing);
+	element_init_G1(gh, _pairing);
+	element_init_G1(tmp, _pairing);
 	element_init_G1(_sig->sig0, _pairing);
 	element_init_G1(_sig->sig1, _pairing);
-	element_init_G1(tmp, _pairing);
-	element_init_G1(tmp1, _pairing);
 
 	// Set dummy set.
 	element_init_vector_Zr(_pairing, ddS, d - _pred->k);
@@ -256,7 +258,6 @@ void abs_sign(pairing_t _pairing, sig_t _sig, char *_msg, ask_t _ask, pred_t _pr
 
 
 	// sig0.
-
 	element_set(u, _pk->u);
 	for(i=0; i<n; ++i)
 		if(1 == GET_BIT(hash, i, BASE))
@@ -273,9 +274,9 @@ void abs_sign(pairing_t _pairing, sig_t _sig, char *_msg, ask_t _ask, pred_t _pr
 		element_to_mpz(z, _sig->attrS->val[i]);
 		idx = mpz_get_ui(z) - 1;
 
-		element_mul(tmp, _pk->g1, _pk->H->val[idx]);
-		element_pow_zn(tmp1, tmp, r);
-		element_mul(_sig->sig0, _sig->sig0, tmp1);
+		element_mul(gh, _pk->g1, _pk->H->val[idx]);
+		element_pow_zn(tmp, gh, r);
+		element_mul(_sig->sig0, _sig->sig0, tmp);
 
 
 		// sigi.
@@ -286,16 +287,17 @@ void abs_sign(pairing_t _pairing, sig_t _sig, char *_msg, ask_t _ask, pred_t _pr
 		{
 			for(k=0; k<_ask->attrS->size; ++k)
 			{
-				if(0 == element_cmp(_ask->attrS->val[k], inter_ddS->val[j]))
+				// if(0 == element_cmp(_ask->attrS->val[k], inter_ddS->val[j]))
+				if(0 == element_cmp(_ask->attrS->val[k], _sig->attrS->val[i]))
 				{
-					element_lagrange_interpolation(_pairing, coef, inter_ddS, inter_ddS->val[j], zero);
+					element_lagrange_interpolation(_pairing, lag, inter_ddS, _sig->attrS->val[i], zero);
 					//sig0.
-					element_pow_zn(tmp, _ask->d0->val[k], coef);
+					element_pow_zn(tmp, _ask->d0->val[k], lag);
 					element_mul(_sig->sig0, _sig->sig0, tmp);
 
 
 					//sigi.
-					element_pow_zn(tmp, _ask->d1->val[k], coef);
+					element_pow_zn(tmp, _ask->d1->val[k], lag);
 					element_mul(_sig->sigi->val[i], _sig->sigi->val[i], tmp);
 					++j;
 					break;
@@ -309,9 +311,9 @@ void abs_sign(pairing_t _pairing, sig_t _sig, char *_msg, ask_t _ask, pred_t _pr
 	element_clear(s);
 	element_clear(u);
 	element_clear(r);
+	element_clear(gh);
 	element_clear(tmp);
-	element_clear(tmp1);
-	element_clear(coef);
+	element_clear(lag);
 	element_clear(zero);
 	element_clear_vector(ddS);
 	element_clear_vector(inter_ddS);
@@ -359,6 +361,7 @@ int abs_verify(pairing_t _pairing, char *_msg, sig_t _sig, pred_t _pred, pk_t _p
 	mpz_init(z);
 	element_to_mpz(z, _sig->attrS->val[0]);
 	idx = mpz_get_ui(z) - 1;
+
 	element_mul(gh, _pk->g1, _pk->H->val[idx]);
 	element_pairing(tmp2, gh, _sig->sigi->val[0]);
 	for(i=1; i<_sig->attrS->size; ++i)
@@ -476,27 +479,6 @@ int main(int argc, char *argv[])
 	printf("## message : %s\n", msg);
 	printf("## isValid : %s\n", str);
 
-	
-	// check is utility okay.
-	printf("\n## univS: \n");
-	for(int i=0; i<univS->size; i++) element_printf("%B, ", univS->val[i]);
-	printf("\n## dummyS: \n");
-	for(int i=0; i<dummyS->size; i++) element_printf("%B, ", dummyS->val[i]);
-	printf("\n## userS: \n");
-	for(int i=0; i<userS->size; i++) element_printf("%B, ", userS->val[i]);
-	printf("\n## predicateS: \n");
-	for(int i=0; i<pred->predS->size; i++) element_printf("%B, ", pred->predS->val[i]);
-	vecter_ptr intersection = element_get_intersection_vector_Zr(pairing, pred->predS, userS);
-	printf("\n## intersection(userS, predicateS): \n");
-	for(int i=0; i<intersection->size; i++) element_printf("%B, ", intersection->val[i]);
-	element_clear_vector(intersection);
-	free(intersection);
-	printf("\n## attribute private key: \n");
-	for(int i=0; i<ask->attrS->size; i++) element_printf("%B, ", ask->attrS->val[i]);
-	printf("\n## signature: \n");
-	for(int i=0; i<sig->attrS->size; i++) element_printf("%B, ", sig->attrS->val[i]);
-	printf("\n");
-	
 
 	// clean memory.
 	abs_clear(pk, mk, ask, sig);
