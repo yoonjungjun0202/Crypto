@@ -74,3 +74,9 @@ void element_lagrange_interpolation(pairing_t _pairing, element_t _coef, vecter_
 	element_clear(numerator);
 	element_clear(denominator);
 }
+
+void element_clear_poly(poly_t _q)
+{
+	vecter_ptr tmp = (vecter_ptr) _q;
+	element_clear_vector(tmp);
+}
