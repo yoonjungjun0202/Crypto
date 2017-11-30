@@ -4,6 +4,7 @@
 #include <openssl/bn.h>
 #include <openssl/sha.h>
 #include <openssl/rand.h>
+#include <openssl/err.h>
 
 
 /* Start of defined constant/global variables. */
@@ -46,6 +47,45 @@ typedef struct signature_s *sig_ptr;
 #define GET8_HBIT(x) ( (x >> 4) & 0x0f )
 #define GET8_LBIT(x) ( x & 0x0f )
 /* Start of defined function */
+void BN_ext_euclid(BIGNUM *_inv_a, const BIGNUM *_a, const BIGNUM *_n, BN_CTX *_ctx)
+{
+    BIGNUM *r = BN_new();
+    BIGNUM *r1 = BN_dup(_a);
+    BIGNUM *r2 = BN_dup(_n);
+    BIGNUM *x = BN_new();
+    BIGNUM *x1 = BN_new();
+    BIGNUM *x2 = BN_new();
+    BIGNUM *q = BN_new();
+    BIGNUM *temp = BN_new();
+
+    BN_zero(x2);
+    BN_one(x1);
+
+    while(0 == BN_is_zero(r2))
+    {
+        BN_div(q, temp, r1, r2, _ctx);
+        BN_mul(temp, q, r2, _ctx);
+        BN_sub(r, r1, temp);
+        BN_copy(r1, r2);
+        BN_copy(r2, r);
+
+        BN_mul(temp, q, x2, _ctx);
+        BN_sub(x, x1, temp);
+        BN_copy(x1, x2);
+        BN_copy(x2, x);
+    }
+    BN_copy(_inv_a, x1);
+
+    BN_clear_free(temp);
+    BN_clear_free(r);
+    BN_clear_free(r1);
+    BN_clear_free(r2);
+    BN_clear_free(x);
+    BN_clear_free(x1);
+    BN_clear_free(x2);
+    BN_clear_free(q);
+}
+
 void BN_hash(BIGNUM **_hash, unsigned char *_msg)
 {
 	int i, hBit, lBit;
@@ -70,11 +110,9 @@ void BN_hash(BIGNUM **_hash, unsigned char *_msg)
 void elgamal_keygen(BN_CTX *_ctx, pk_t _pk, sk_t _sk)
 {
 	BIGNUM *tmp;
-	BIGNUM *two;
 
 	// Initialize parameters.
 	tmp = BN_new();
-	two = BN_new();
 
 	_pk->p = BN_new();
 	_pk->g = BN_new();
@@ -82,20 +120,21 @@ void elgamal_keygen(BN_CTX *_ctx, pk_t _pk, sk_t _sk)
 
 	_sk->x = BN_new();
 
+
 	// Generate l bit prime.
 	RAND_seed(seed, seedSize);
 	while(0 == BN_generate_prime_ex(_pk->p, l, 0, NULL, NULL, NULL));
 
-	// Generate x. (1 < x < p-1)
-	BN_set_word(two, 2);
-	BN_copy(tmp, _pk->p);
-	BN_sub_word(tmp, 3);
-	BN_rand_range(_sk->x, tmp);
-	BN_add(_sk->x, _sk->x, two);
-
 	// Genearte generator g.
-	BN_set_word(tmp, 17);
-	BN_exp(_pk->g, two, tmp, _ctx);
+	BN_copy(tmp, _pk->p);
+	BN_sub_word(tmp, 1);
+	BN_rand_range(_pk->g, tmp);	// 0 <= tmp < p-1.
+	BN_add_word(_pk->g, 1);		// 1 <= tmp < p.
+
+	// Generate x. (1 < x < p-1)
+	BN_sub_word(tmp, 3);
+	BN_rand_range(_sk->x, tmp);	// 0 <= tmp < p-3.
+	BN_add_word(_sk->x, 2);		// 2 <= tmp < p-1.
 
 	// Generate y.
 	BN_mod_exp(_pk->y, _pk->g, _sk->x, _pk->p, _ctx);
@@ -103,15 +142,14 @@ void elgamal_keygen(BN_CTX *_ctx, pk_t _pk, sk_t _sk)
 
 	// clear.
 	BN_clear_free(tmp);
-	BN_clear_free(two);
 }
-/* End of defined function */
 
 void elgamal_sign(BN_CTX *_ctx, unsigned char *_msg, sig_t _sig, sk_t _sk, pk_t _pk)
 {
 	BIGNUM *k;
 	BIGNUM *k_inv;
 	BIGNUM *xr;
+	BIGNUM *p1;
 	BIGNUM *gcd;
 	BIGNUM *tmp;
 	BIGNUM *hash;
@@ -120,6 +158,7 @@ void elgamal_sign(BN_CTX *_ctx, unsigned char *_msg, sig_t _sig, sk_t _sk, pk_t 
 	k = BN_new();
 	k_inv = BN_new();
 	xr = BN_new();
+	p1 = BN_new();
 	gcd = BN_new();
 	tmp = BN_new();
 	hash = BN_new();
@@ -127,36 +166,51 @@ void elgamal_sign(BN_CTX *_ctx, unsigned char *_msg, sig_t _sig, sk_t _sk, pk_t 
 	_sig->r = BN_new();
 	_sig->s = BN_new();
 
+	// Hash the message.
+	BN_hash(&hash, _msg);
+
 	// Generate k. (0 < k < p-1)
+	BN_copy(p1, _pk->p);
+	BN_sub_word(p1, 1);		// p1 = p-1.
 	while(1)
 	{
 		BN_copy(tmp, _pk->p);
-		BN_sub_word(tmp, 2);
-		BN_rand_range(k, tmp);
-		BN_add_word(k, 1);
+		BN_sub_word(tmp, 2);	// tmp = p-2.
+		while(1)
+		{
+			BN_rand_range(k, tmp);	// 0 <= k < p-2.
+			BN_add_word(k, 1);		// 1 <= k < p-1.
 
-		BN_copy(tmp, _pk->p);
-		BN_sub_word(tmp, 1);
-		BN_gcd(gcd, k, tmp, _ctx);
-		if(0 == BN_cmp(gcd, BN_value_one()))
+			BN_gcd(gcd, k, p1, _ctx);
+			if(1 == BN_is_one(gcd))	// gcd(k, p-1) = 1.
+				break;
+		}
+
+		// Compute r.
+		BN_mod_exp(_sig->r, _pk->g, k, _pk->p, _ctx);
+
+		// Compute s.
+		BN_mod_inverse(k_inv, k, p1, _ctx);
+		BN_mod_mul(tmp, k, k_inv, p1, _ctx);
+		if(0 == BN_is_one(tmp))
+		{
+			printf("Finding inverse of k breaks error.\n");
+			exit(0);
+		}
+
+		BN_mod_mul(xr, _sk->x, _sig->r, p1, _ctx);
+		BN_mod_sub(tmp , hash, xr, p1, _ctx);
+		BN_mod_mul(_sig->s, tmp, k_inv, p1, _ctx);
+
+		if(0 == BN_is_zero(_sig->s))
 			break;
 	}
-
-	// Compute r.
-	BN_mod_exp(_sig->r, _pk->g, k, _pk->p, _ctx);
-	
-	// Compute s.
-	// Hashing the message.
-	BN_hash(&hash, _msg);
-
-	BN_mod_inverse(k_inv, k, _pk->p, _ctx);
-	BN_mod_mul(xr, _sk->x, _sig->r, _pk->p, _ctx);
-
 
 	// clear.
 	BN_clear_free(k);
 	BN_clear_free(k_inv);
 	BN_clear_free(xr);
+	BN_clear_free(p1);
 	BN_clear_free(gcd);
 	BN_clear_free(tmp);
 	BN_clear_free(hash);
@@ -164,12 +218,8 @@ void elgamal_sign(BN_CTX *_ctx, unsigned char *_msg, sig_t _sig, sk_t _sk, pk_t 
 
 int elgamal_verify()
 {
-	/*
-	// Hashing the message.
-    SHA256_Init(&ctx);
-    SHA256_Update(&ctx, (unsigned char *) _msg, strlen(_msg));
-    SHA256_Final(hash, &ctx);
-	*/
+    BIGNUM *hash;
+
 }
 
 void elgamal_clear(pk_t _pk, sk_t _sk, sig_t _sig)
@@ -186,6 +236,7 @@ void elgamal_clear(pk_t _pk, sk_t _sk, sig_t _sig)
 	BN_clear_free(_sig->r);
 	BN_clear_free(_sig->s);
 }
+/* End of defined function */
 
 /* Start of main function. */
 int main(int argc, char *argv[])
