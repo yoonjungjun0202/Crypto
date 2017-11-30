@@ -8,9 +8,11 @@
 
 
 /* Start of defined constant/global variables. */
+#define GET8_HBIT(x) ( (x >> 4) & 0x0f )
+#define GET8_LBIT(x) ( x & 0x0f )
 #define BASE 8
 const int n = SHA256_DIGEST_LENGTH * BASE;  // 256 bit = 32 * 8.
-const int l = 1024;
+const int l = 4;
 const char seed[] = "random seed";
 const int seedSize = sizeof(seed)/sizeof(seed[0]);
 /* End of defined constant variables. */
@@ -44,48 +46,7 @@ typedef struct signature_s *sig_ptr;
 /* End of defined structures. */
 
 
-#define GET8_HBIT(x) ( (x >> 4) & 0x0f )
-#define GET8_LBIT(x) ( x & 0x0f )
 /* Start of defined function */
-void BN_ext_euclid(BIGNUM *_inv_a, const BIGNUM *_a, const BIGNUM *_n, BN_CTX *_ctx)
-{
-    BIGNUM *r = BN_new();
-    BIGNUM *r1 = BN_dup(_a);
-    BIGNUM *r2 = BN_dup(_n);
-    BIGNUM *x = BN_new();
-    BIGNUM *x1 = BN_new();
-    BIGNUM *x2 = BN_new();
-    BIGNUM *q = BN_new();
-    BIGNUM *temp = BN_new();
-
-    BN_zero(x2);
-    BN_one(x1);
-
-    while(0 == BN_is_zero(r2))
-    {
-        BN_div(q, temp, r1, r2, _ctx);
-        BN_mul(temp, q, r2, _ctx);
-        BN_sub(r, r1, temp);
-        BN_copy(r1, r2);
-        BN_copy(r2, r);
-
-        BN_mul(temp, q, x2, _ctx);
-        BN_sub(x, x1, temp);
-        BN_copy(x1, x2);
-        BN_copy(x2, x);
-    }
-    BN_copy(_inv_a, x1);
-
-    BN_clear_free(temp);
-    BN_clear_free(r);
-    BN_clear_free(r1);
-    BN_clear_free(r2);
-    BN_clear_free(x);
-    BN_clear_free(x1);
-    BN_clear_free(x2);
-    BN_clear_free(q);
-}
-
 void BN_hash(BIGNUM **_hash, unsigned char *_msg)
 {
 	int i, hBit, lBit;
@@ -140,7 +101,7 @@ void elgamal_keygen(BN_CTX *_ctx, pk_t _pk, sk_t _sk)
 	BN_mod_exp(_pk->y, _pk->g, _sk->x, _pk->p, _ctx);
 
 
-	// clear.
+	// Clear.
 	BN_clear_free(tmp);
 }
 
@@ -206,7 +167,8 @@ void elgamal_sign(BN_CTX *_ctx, unsigned char *_msg, sig_t _sig, sk_t _sk, pk_t 
 			break;
 	}
 
-	// clear.
+
+	// Clear.
 	BN_clear_free(k);
 	BN_clear_free(k_inv);
 	BN_clear_free(xr);
@@ -216,10 +178,55 @@ void elgamal_sign(BN_CTX *_ctx, unsigned char *_msg, sig_t _sig, sk_t _sk, pk_t 
 	BN_clear_free(hash);
 }
 
-int elgamal_verify()
+int elgamal_verify(BN_CTX *_ctx, unsigned char *_msg, sig_t _sig, pk_t _pk)
 {
+    BIGNUM *p1;
+    BIGNUM *tmp;
+    BIGNUM *tmp1;
+    BIGNUM *tmp2;
+    BIGNUM *tmp3;
     BIGNUM *hash;
+	BIGNUM *zero;
 
+	int isValid = 0;
+
+	// Initialize parameters.
+    p1 = BN_new();
+    zero = BN_new();
+    tmp = BN_new();
+    tmp1 = BN_new();
+    tmp2 = BN_new();
+    tmp3 = BN_new();
+    hash = BN_new();
+
+	// Check signature.
+	BN_zero(zero);
+	BN_copy(p1, _pk->p);
+	BN_sub_word(p1, 1);		// p1 = p - 1.
+	if( ((-1 != BN_cmp(zero, _sig->r)) || (-1 != BN_cmp(_sig->r, _pk->p)))
+			&& ((-1 != BN_cmp(zero, _sig->s)) || (-1 != BN_cmp(_sig->s, p1))) )
+		return isValid;
+
+	// Hash the message.
+    BN_hash(&hash, _msg);
+
+	BN_mod_exp(tmp, _pk->g, hash, _pk->p, _ctx);
+	BN_mod_exp(tmp2, _pk->y, _sig->r, _pk->p, _ctx);
+	BN_mod_exp(tmp3, _sig->r, _sig->s, _pk->p, _ctx);
+	BN_mod_mul(tmp1, tmp2, tmp3, _pk->p, _ctx);
+	isValid = (0 == BN_cmp(tmp, tmp1)) ? (1) : (0);
+
+
+	// Clear.
+	BN_clear_free(p1);
+	BN_clear_free(tmp);
+	BN_clear_free(tmp1);
+	BN_clear_free(tmp2);
+	BN_clear_free(tmp3);
+	BN_clear_free(hash);
+	BN_clear_free(zero);
+
+	return isValid;
 }
 
 void elgamal_clear(pk_t _pk, sk_t _sk, sig_t _sig)
@@ -258,11 +265,14 @@ int main(int argc, char *argv[])
 	elgamal_sign(ctx, msg, sig, sk, pk);
 
 	// 3. Verify signature.
-	// elgamal_verify(msg, sig, pk);
+	isValid = elgamal_verify(ctx, msg, sig, pk);
+	str = (1 == isValid) ? ("valid") : ("invalid");
+	printf("# msg : %s\n", msg);
+	printf("# sig : %s\n", str);
 
 	// clean memory.
 	BN_CTX_free(ctx);
-	// elgamal_clear(pk, sk, sig);
+	elgamal_clear(pk, sk, sig);
 
 	return 0;
 }
