@@ -1,11 +1,14 @@
 # Crypto
-Cryptography implementation of white paper.
+Cryptography implementation of white paper.  
+  
+RSA Based uses openssl Library.  
+Pairing based uses PBC Library.  
 
 
-<<<<<<< HEAD
-- Attribute-based Signaturea  
-=======
-- Attribute-based_Signature  
->>>>>>> c1e411595190ea33b3a887aa43b05da9a8888058
+- Attribute-based Signature
 Title : Attribute-based Signature and its Applications.  
 Author: Jin Li§, Man Ho Au, Willy Susilo, Dongqing Xie, Kui Ren.  
+
+- ElGamal_Signature
+Title : A public key cryptosystem and a signature scheme based on discrete logarithms.  
+Author: Taher ElGamal.  
