@@ -43,17 +43,38 @@ typedef struct signature_s *sig_ptr;
 /* End of defined structures. */
 
 
+#define GET8_HBIT(x) ( (x >> 4) & 0x0f )
+#define GET8_LBIT(x) ( x & 0x0f )
 /* Start of defined function */
+void BN_hash(BIGNUM **_hash, unsigned char *_msg)
+{
+	int i, hBit, lBit;
+	unsigned char hash[SHA256_DIGEST_LENGTH];
+	unsigned char tmp[SHA256_DIGEST_LENGTH*2+1];
+
+	SHA256_CTX sha256_ctx;
+    SHA256_Init(&sha256_ctx);
+    SHA256_Update(&sha256_ctx, _msg, strlen(_msg));
+    SHA256_Final(hash, &sha256_ctx);
+	for(i=0; i<SHA256_DIGEST_LENGTH; ++i)
+	{
+		hBit = GET8_HBIT(hash[i]);
+		lBit = GET8_LBIT(hash[i]);
+		tmp[i*2] = hBit + ((0 <= hBit && hBit < 10) ? (48) : (55));
+		tmp[i*2+1] = lBit + ((0 <= lBit && lBit < 10) ? (48) : (55));
+	}
+	tmp[i*2] = '\0';
+	BN_hex2bn(_hash, tmp);
+}
+
 void elgamal_keygen(BN_CTX *_ctx, pk_t _pk, sk_t _sk)
 {
 	BIGNUM *tmp;
 	BIGNUM *two;
-	BIGNUM *three;
 
 	// Initialize parameters.
 	tmp = BN_new();
 	two = BN_new();
-	three = BN_new();
 
 	_pk->p = BN_new();
 	_pk->g = BN_new();
@@ -65,12 +86,10 @@ void elgamal_keygen(BN_CTX *_ctx, pk_t _pk, sk_t _sk)
 	RAND_seed(seed, seedSize);
 	while(0 == BN_generate_prime_ex(_pk->p, l, 0, NULL, NULL, NULL));
 
-	// Generate x. (1 < x < p-1).
+	// Generate x. (1 < x < p-1)
 	BN_set_word(two, 2);
-	BN_set_word(three, 3);
-
 	BN_copy(tmp, _pk->p);
-	BN_sub(tmp, tmp, three);
+	BN_sub_word(tmp, 3);
 	BN_rand_range(_sk->x, tmp);
 	BN_add(_sk->x, _sk->x, two);
 
@@ -85,18 +104,62 @@ void elgamal_keygen(BN_CTX *_ctx, pk_t _pk, sk_t _sk)
 	// clear.
 	BN_clear_free(tmp);
 	BN_clear_free(two);
-	BN_clear_free(three);
 }
 /* End of defined function */
 
-void elgamal_sign()
+void elgamal_sign(BN_CTX *_ctx, unsigned char *_msg, sig_t _sig, sk_t _sk, pk_t _pk)
 {
-	/*
+	BIGNUM *k;
+	BIGNUM *k_inv;
+	BIGNUM *xr;
+	BIGNUM *gcd;
+	BIGNUM *tmp;
+	BIGNUM *hash;
+
+	// Initialize parameters.
+	k = BN_new();
+	k_inv = BN_new();
+	xr = BN_new();
+	gcd = BN_new();
+	tmp = BN_new();
+	hash = BN_new();
+
+	_sig->r = BN_new();
+	_sig->s = BN_new();
+
+	// Generate k. (0 < k < p-1)
+	while(1)
+	{
+		BN_copy(tmp, _pk->p);
+		BN_sub_word(tmp, 2);
+		BN_rand_range(k, tmp);
+		BN_add_word(k, 1);
+
+		BN_copy(tmp, _pk->p);
+		BN_sub_word(tmp, 1);
+		BN_gcd(gcd, k, tmp, _ctx);
+		if(0 == BN_cmp(gcd, BN_value_one()))
+			break;
+	}
+
+	// Compute r.
+	BN_mod_exp(_sig->r, _pk->g, k, _pk->p, _ctx);
+	
+	// Compute s.
 	// Hashing the message.
-    SHA256_Init(&ctx);
-    SHA256_Update(&ctx, (unsigned char *) _msg, strlen(_msg));
-    SHA256_Final(hash, &ctx);
-	*/
+	BN_hash(&hash, _msg);
+
+	BN_mod_inverse(k_inv, k, _pk->p, _ctx);
+	BN_mod_mul(xr, _sk->x, _sig->r, _pk->p, _ctx);
+
+
+	// clear.
+	BN_clear_free(k);
+	BN_clear_free(k_inv);
+	BN_clear_free(xr);
+	BN_clear_free(gcd);
+	BN_clear_free(tmp);
+	BN_clear_free(hash);
 }
 
 int elgamal_verify()
@@ -141,7 +204,7 @@ int main(int argc, char *argv[])
 	elgamal_keygen(ctx, pk, sk);
 
 	// 2. Generate signature.
-	// elgamal_sign(msg, sk);
+	elgamal_sign(ctx, msg, sig, sk, pk);
 
 	// 3. Verify signature.
 	// elgamal_verify(msg, sig, pk);
